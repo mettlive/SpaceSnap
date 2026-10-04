@@ -35,5 +35,8 @@ if [[ "${1:-}" == "--install" ]]; then
     for _ in {1..50}; do pgrep -xq "${APP_NAME}" || break; sleep 0.1; done
     rm -rf "/Applications/${APP_NAME}.app"
     cp -R "${APP_PATH}" "/Applications/${APP_NAME}.app"
+    if [[ "${SIGN_IDENTITY}" == "-" ]]; then
+        tccutil reset Accessibility dev.mettlive.SpaceSnap >/dev/null 2>&1 || true
+    fi
     open "/Applications/${APP_NAME}.app"
 fi

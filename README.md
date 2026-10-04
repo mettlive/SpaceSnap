@@ -42,7 +42,7 @@ cd SpaceSnap
 
 Grant **Accessibility** access: **System Settings → Privacy & Security → Accessibility → SpaceSnap**. macOS ignores synthetic input events from apps without it.
 
-The grant is tied to the app's code signature. Builds signed with a Developer ID keep it across updates. Ad-hoc signed builds (local builds and non-notarized releases) look like a new app to macOS after every update: remove SpaceSnap from the list with **−** and enable it again.
+The grant is tied to the app's code signature. Builds signed with a Developer ID keep it across updates. Ad-hoc signed builds (local builds and non-notarized releases) look like a new app to macOS after every update, and re-enabling the old entry does nothing. The install script and `scripts/bundle.sh --install` reset the stale entry for you, so just grant access again when asked. After a manual DMG update, remove SpaceSnap from the list with **−** (or run `tccutil reset Accessibility dev.mettlive.SpaceSnap`) and grant it again.
 
 Settings live in the menu bar icon → **Settings…**: swipe interception, overlay, empty-desktop guard, menu bar number, launch at login, and all shortcuts.
 

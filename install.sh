@@ -46,12 +46,15 @@ privileged rm -rf "${INSTALL_DIR}/${APP_NAME}.app"
 privileged ditto "${WORK_DIR}/${APP_NAME}.app" "${INSTALL_DIR}/${APP_NAME}.app"
 privileged xattr -dr com.apple.quarantine "${INSTALL_DIR}/${APP_NAME}.app" 2>/dev/null || true
 
+if codesign -dv "${INSTALL_DIR}/${APP_NAME}.app" 2>&1 | grep -q '^Signature=adhoc'; then
+    tccutil reset Accessibility "${BUNDLE_ID}" >/dev/null 2>&1 || true
+fi
+
 open "${INSTALL_DIR}/${APP_NAME}.app"
 
 cat <<EOF
 ${APP_NAME} is installed and running (look for the desktop number in the menu bar).
 
-Grant Accessibility access when prompted:
+Grant Accessibility access when macOS asks:
   System Settings > Privacy & Security > Accessibility > ${APP_NAME}
-If ${APP_NAME} was already listed there from a previous version, remove it with "-" and enable it again.
 EOF
