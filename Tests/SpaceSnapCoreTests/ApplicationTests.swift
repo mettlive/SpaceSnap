@@ -69,6 +69,18 @@ private final class RecordingEmitter: SpaceGestureEmitter {
         #expect(second.currentIndex == 2)
     }
 
+    @Test func landingIsReachedOnlyWhenTargetDisplayShowsTargetSpace() throws {
+        let repository = StubRepository(makeDisplay([.desktop, .fullscreen, .desktop], current: 1))
+        let service = SpaceSwitchService(repository: repository, emitter: RecordingEmitter(), predictionWindow: 0)
+        let landing = try #require(service.perform(.neighbor(.left)))
+
+        #expect(!service.hasLanded(on: landing))
+        repository.display = makeDisplay([.desktop, .fullscreen, .desktop], current: 0, displayID: "B")
+        #expect(!service.hasLanded(on: landing))
+        repository.display = makeDisplay([.desktop, .fullscreen, .desktop], current: 0)
+        #expect(service.hasLanded(on: landing))
+    }
+
     @Test func unknownSpacesStillSwitchNeighborButNotJumps() {
         let emitter = RecordingEmitter()
         let service = SpaceSwitchService(repository: StubRepository(nil), emitter: emitter, predictionWindow: 0)

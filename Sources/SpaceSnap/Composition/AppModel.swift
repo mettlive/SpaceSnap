@@ -23,6 +23,9 @@ final class AppModel {
     private var workspaceObservers: [NSObjectProtocol] = []
 
     @ObservationIgnored
+    private var pendingOverlay: PendingOverlay?
+
+    @ObservationIgnored
     private lazy var interceptor = TrackpadSwipeInterceptor { [weak self] direction in
         self?.handle(.neighbor(direction))
     }
@@ -82,9 +85,7 @@ final class AppModel {
 
     func handle(_ target: SwitchTarget) {
         guard let landing = service.perform(target) else { return }
-        if settings.showsOverlay {
-            overlay.show(landing)
-        }
+        pendingOverlay = settings.showsOverlay ? PendingOverlay(landing: landing, requestedAt: .now) : nil
     }
 
     func restoreSystemShortcuts() {
@@ -139,7 +140,19 @@ final class AppModel {
             emptyDesktopGuard.handleSpaceChange()
         }
         refreshActiveSpaces()
+        showOverlayIfLanded()
         scheduleSettle()
+    }
+
+    private func showOverlayIfLanded() {
+        guard let pending = pendingOverlay else { return }
+        guard Date.now.timeIntervalSince(pending.requestedAt) < PendingOverlay.landingTimeout else {
+            pendingOverlay = nil
+            return
+        }
+        guard service.hasLanded(on: pending.landing) else { return }
+        pendingOverlay = nil
+        overlay.show(pending.landing)
     }
 
     private func scheduleSettle() {
@@ -150,4 +163,11 @@ final class AppModel {
             self.service.recordSettledSpaces()
         }
     }
+}
+
+private struct PendingOverlay {
+    static let landingTimeout: TimeInterval = 1
+
+    let landing: DisplaySpaces
+    let requestedAt: Date
 }

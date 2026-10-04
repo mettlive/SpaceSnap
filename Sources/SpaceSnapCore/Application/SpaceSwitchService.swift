@@ -41,6 +41,12 @@ public final class SpaceSwitchService {
         return plan.landing
     }
 
+    public func hasLanded(on landing: DisplaySpaces) -> Bool {
+        repository.allDisplays().contains {
+            $0.displayID == landing.displayID && $0.currentSpace.id == landing.currentSpace.id
+        }
+    }
+
     public func recordSettledSpaces() {
         history.observe(repository.allDisplays())
     }
