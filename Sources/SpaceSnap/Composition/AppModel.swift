@@ -26,7 +26,7 @@ final class AppModel {
     private var workspaceObservers: [NSObjectProtocol] = []
 
     @ObservationIgnored
-    private var pendingOverlay: PendingOverlay?
+    private var overlayTask: Task<Void, Never>?
 
     @ObservationIgnored
     private lazy var interceptor = TrackpadSwipeInterceptor { [weak self] direction in
@@ -151,7 +151,19 @@ final class AppModel {
     }
 
     private func present(_ landing: DisplaySpaces) {
-        pendingOverlay = settings.showsOverlay ? PendingOverlay(landing: landing, requestedAt: .now) : nil
+        overlayTask?.cancel()
+        guard settings.showsOverlay else { return }
+        overlayTask = Task { [weak self] in
+            let deadline = ContinuousClock.now + OverlayTiming.landingTimeout
+            while ContinuousClock.now < deadline {
+                guard let self, !Task.isCancelled else { return }
+                if self.service.hasLanded(on: landing) {
+                    self.overlay.show(landing)
+                    return
+                }
+                try? await Task.sleep(for: OverlayTiming.pollInterval)
+            }
+        }
     }
 
     private func appDidActivate(processID: pid_t?) {
@@ -179,19 +191,7 @@ final class AppModel {
         refreshActiveSpaces()
         followService.spaceDidChange()
         followTask?.cancel()
-        showOverlayIfLanded()
         scheduleSettle()
-    }
-
-    private func showOverlayIfLanded() {
-        guard let pending = pendingOverlay else { return }
-        guard Date.now.timeIntervalSince(pending.requestedAt) < PendingOverlay.landingTimeout else {
-            pendingOverlay = nil
-            return
-        }
-        guard service.hasLanded(on: pending.landing) else { return }
-        pendingOverlay = nil
-        overlay.show(pending.landing)
     }
 
     private func scheduleSettle() {
@@ -204,9 +204,7 @@ final class AppModel {
     }
 }
 
-private struct PendingOverlay {
-    static let landingTimeout: TimeInterval = 1
-
-    let landing: DisplaySpaces
-    let requestedAt: Date
+private enum OverlayTiming {
+    static let landingTimeout: Duration = .seconds(1)
+    static let pollInterval: Duration = .milliseconds(4)
 }
