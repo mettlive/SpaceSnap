@@ -3,7 +3,8 @@ import Foundation
 
 @MainActor
 final class CursorRouter {
-    private static let restoreDelay: Duration = .milliseconds(80)
+    private static let restoreDelay: Duration = .milliseconds(150)
+    private static let movedTolerance: CGFloat = 2
 
     private var restoreTask: Task<Void, Never>?
     private var originalLocation: CGPoint?
@@ -19,16 +20,21 @@ final class CursorRouter {
         }
 
         let original = originalLocation ?? current
+        let parked = CGPoint(x: bounds.midX, y: bounds.midY)
         originalLocation = original
-        warp(to: CGPoint(x: bounds.midX, y: bounds.midY))
+        warp(to: parked)
         action()
 
         restoreTask?.cancel()
         restoreTask = Task { [weak self] in
             try? await Task.sleep(for: Self.restoreDelay)
             guard let self, !Task.isCancelled else { return }
-            self.warp(to: original)
             self.originalLocation = nil
+            guard let now = CGEvent(source: nil)?.location,
+                  abs(now.x - parked.x) <= Self.movedTolerance,
+                  abs(now.y - parked.y) <= Self.movedTolerance
+            else { return }
+            self.warp(to: original)
         }
     }
 

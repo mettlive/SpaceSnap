@@ -22,6 +22,7 @@ final class AppModel {
     private let overlay: SpaceOverlayController
     private var accessibilityPollTask: Task<Void, Never>?
     private var settleTask: Task<Void, Never>?
+    private var followTask: Task<Void, Never>?
     private var workspaceObservers: [NSObjectProtocol] = []
 
     @ObservationIgnored
@@ -155,14 +156,20 @@ final class AppModel {
 
     private func appDidActivate(processID: pid_t?) {
         refreshActiveSpaces()
+        followTask?.cancel()
         guard settings.followsAppActivationInstantly,
               isAccessibilityGranted,
               let processID,
               processID != ProcessInfo.processInfo.processIdentifier,
-              DockSpaceFollowPreference.switchesToAppSpaceOnActivation,
-              let landing = followService.appDidActivate(processID: processID)
+              DockSpaceFollowPreference.switchesToAppSpaceOnActivation
         else { return }
-        present(landing)
+        followTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(80))
+            guard let self, !Task.isCancelled,
+                  let landing = self.followService.appDidActivate(processID: processID)
+            else { return }
+            self.present(landing)
+        }
     }
 
     private func spaceDidChange() {
@@ -171,6 +178,7 @@ final class AppModel {
         }
         refreshActiveSpaces()
         followService.spaceDidChange()
+        followTask?.cancel()
         showOverlayIfLanded()
         scheduleSettle()
     }
