@@ -81,6 +81,12 @@ swift test
 ./scripts/package.sh           # build/SpaceSnap.dmg + build/SpaceSnap.zip
 ```
 
+The app icon is drawn in code: edit `scripts/generate-icon.swift`, then regenerate `Resources/AppIcon.icns`:
+
+```sh
+swift scripts/generate-icon.swift /tmp/AppIcon.iconset && iconutil -c icns /tmp/AppIcon.iconset -o Resources/AppIcon.icns
+```
+
 Layout:
 
 - `Sources/SpaceSnapCore/Domain` — Spaces model, switch planner, landing prediction, history, hotkeys, settings.

@@ -15,7 +15,7 @@ rm -rf "${APP_PATH}"
 mkdir -p "${APP_PATH}/Contents/MacOS" "${APP_PATH}/Contents/Resources"
 cp "${BIN_PATH}" "${APP_PATH}/Contents/MacOS/${APP_NAME}"
 cp Resources/Info.plist "${APP_PATH}/Contents/Info.plist"
-cp LICENSE THIRD_PARTY_NOTICES.md "${APP_PATH}/Contents/Resources/"
+cp LICENSE THIRD_PARTY_NOTICES.md Resources/AppIcon.icns "${APP_PATH}/Contents/Resources/"
 
 if [[ -n "${VERSION:-}" ]]; then
     plutil -replace CFBundleShortVersionString -string "${VERSION}" "${APP_PATH}/Contents/Info.plist"
