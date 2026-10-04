@@ -83,8 +83,6 @@ Layout:
 - `Sources/SpaceSnapCore/Infrastructure` — private SkyLight APIs, gesture synthesis, event tap, Carbon hotkeys, empty-desktop guard.
 - `Sources/SpaceSnap` — SwiftUI menu bar app, settings window, overlay.
 
-Release process: [RELEASING.md](RELEASING.md).
-
 ## Credits
 
 The synthetic Dock-swipe technique comes from [jurplel/InstantSpaceSwitcher](https://github.com/jurplel/InstantSpaceSwitcher) (MIT). Swipe interception, the macOS 27 payload and the empty-desktop guard are based on [mmathys/noswoosh](https://github.com/mmathys/noswoosh) (MIT) and [joshuarli/iss](https://github.com/joshuarli/iss) (0BSD).
