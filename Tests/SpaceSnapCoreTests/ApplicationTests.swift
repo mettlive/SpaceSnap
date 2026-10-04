@@ -138,6 +138,13 @@ private final class StubWindowLocator: AppWindowLocator {
         #expect(emitter.emitted.isEmpty)
     }
 
+    @Test func windowListedOnSeveralHiddenSpacesIsChasedToItsFirstSpace() {
+        let (_, _, locator, follower) = makeFixture { .distantFuture }
+        locator.spaces = [11, 2]
+
+        #expect(follower.appDidActivate(processID: 1)?.currentSpace.id == 11)
+    }
+
     @Test func ignoresActivationsRightAfterLandingAndUnknownSpaces() {
         var current = start
         let (_, emitter, locator, follower) = makeFixture { current }
