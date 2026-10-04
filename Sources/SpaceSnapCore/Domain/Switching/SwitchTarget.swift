@@ -14,6 +14,7 @@ public enum SwitchTarget: Sendable, Hashable {
     case neighbor(SwitchDirection)
     case desktop(Int)
     case previous
+    case space(SpaceID)
 }
 
 public struct SwitchPlan: Sendable, Equatable {
@@ -49,6 +50,8 @@ public enum SwitchPlanner {
             origin.indexOfDesktop(number: number)
         case .previous:
             previousSpaceID.flatMap(origin.index(of:))
+        case .space(let spaceID):
+            origin.index(of: spaceID)
         }
     }
 }

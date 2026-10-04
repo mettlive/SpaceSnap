@@ -59,3 +59,16 @@ import Testing
         #expect(bindings.actions().isEmpty)
     }
 }
+
+@Suite struct AppSettingsTests {
+    @Test func decodingSettingsSavedBeforeANewOptionKeepsStoredValues() throws {
+        let legacy = #"{"showsOverlay":false,"interceptsTrackpadSwipes":false}"#
+
+        let settings = try JSONDecoder().decode(AppSettings.self, from: Data(legacy.utf8))
+
+        #expect(settings.showsOverlay == false)
+        #expect(settings.interceptsTrackpadSwipes == false)
+        #expect(settings.followsAppActivationInstantly == AppSettings.default.followsAppActivationInstantly)
+        #expect(settings.hotkeys == .default)
+    }
+}

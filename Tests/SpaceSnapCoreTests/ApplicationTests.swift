@@ -5,12 +5,13 @@ import Testing
 @MainActor
 private final class StubRepository: SpaceRepository {
     var display: DisplaySpaces?
+    var otherDisplays: [DisplaySpaces] = []
 
     init(_ display: DisplaySpaces?) {
         self.display = display
     }
 
-    func allDisplays() -> [DisplaySpaces] { display.map { [$0] } ?? [] }
+    func allDisplays() -> [DisplaySpaces] { (display.map { [$0] } ?? []) + otherDisplays }
     func spacesUnderCursor() -> DisplaySpaces? { display }
     func spacesOfActiveDisplay() -> DisplaySpaces? { display }
 }
@@ -18,10 +19,19 @@ private final class StubRepository: SpaceRepository {
 @MainActor
 private final class RecordingEmitter: SpaceGestureEmitter {
     private(set) var emitted: [(SwitchDirection, Int)] = []
+    private(set) var displays: [String?] = []
 
-    func emit(_ direction: SwitchDirection, steps: Int) {
+    func emit(_ direction: SwitchDirection, steps: Int, onDisplay displayID: String?) {
         emitted.append((direction, steps))
+        displays.append(displayID)
     }
+}
+
+@MainActor
+private final class StubWindowLocator: AppWindowLocator {
+    var spaces: [SpaceID] = []
+
+    func windowSpaces(ownedBy processID: pid_t) -> [SpaceID] { spaces }
 }
 
 @MainActor
@@ -90,6 +100,60 @@ private final class RecordingEmitter: SpaceGestureEmitter {
 
         #expect(emitter.emitted.count == 1)
         #expect(emitter.emitted.first?.0 == .left)
+    }
+}
+
+@MainActor
+@Suite struct ActivationFollowServiceTests {
+    private let start = Date(timeIntervalSinceReferenceDate: 0)
+
+    private func makeFixture(now: @escaping () -> Date) -> (StubRepository, RecordingEmitter, StubWindowLocator, ActivationFollowService) {
+        let repository = StubRepository(makeDisplay([.desktop, .fullscreen, .desktop], current: 0, displayID: "A"))
+        repository.otherDisplays = [
+            DisplaySpaces(displayID: "B", spaces: [Space(id: 10, kind: .desktop), Space(id: 11, kind: .desktop)], currentSpaceID: 10)!,
+        ]
+        let emitter = RecordingEmitter()
+        let locator = StubWindowLocator()
+        let switcher = SpaceSwitchService(repository: repository, emitter: emitter, predictionWindow: 0, now: now)
+        let follower = ActivationFollowService(locator: locator, switcher: switcher, landingQuietPeriod: 0.5, now: now)
+        return (repository, emitter, locator, follower)
+    }
+
+    @Test func switchesOnTheDisplayOwningTheFrontmostWindowSpace() throws {
+        let (_, emitter, locator, follower) = makeFixture { .distantFuture }
+        locator.spaces = [11, 3]
+
+        let landing = try #require(follower.appDidActivate(processID: 1))
+
+        #expect(landing.displayID == "B")
+        #expect(landing.currentSpace.id == 11)
+        #expect(emitter.displays == ["B"])
+    }
+
+    @Test func staysWhenAppAlreadyHasWindowOnAVisibleSpace() {
+        let (_, emitter, locator, follower) = makeFixture { .distantFuture }
+        locator.spaces = [3, 10]
+
+        #expect(follower.appDidActivate(processID: 1) == nil)
+        #expect(emitter.emitted.isEmpty)
+    }
+
+    @Test func ignoresActivationsRightAfterLandingAndUnknownSpaces() {
+        var current = start
+        let (_, emitter, locator, follower) = makeFixture { current }
+        locator.spaces = [3]
+
+        follower.spaceDidChange()
+        current = start.addingTimeInterval(0.3)
+        #expect(follower.appDidActivate(processID: 1) == nil)
+
+        locator.spaces = [999]
+        current = start.addingTimeInterval(1)
+        #expect(follower.appDidActivate(processID: 1) == nil)
+
+        locator.spaces = [3]
+        #expect(follower.appDidActivate(processID: 1)?.currentSpace.id == 3)
+        #expect(emitter.emitted.count == 1)
     }
 }
 

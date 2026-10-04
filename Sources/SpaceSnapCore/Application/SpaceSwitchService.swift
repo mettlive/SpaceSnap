@@ -22,9 +22,9 @@ public final class SpaceSwitchService {
 
     @discardableResult
     public func perform(_ target: SwitchTarget) -> DisplaySpaces? {
-        guard let observed = repository.spacesUnderCursor() else {
+        guard let observed = observedOrigin(for: target) else {
             if case .neighbor(let direction) = target {
-                emitter.emit(direction, steps: 1)
+                emitter.emit(direction, steps: 1, onDisplay: nil)
             }
             return nil
         }
@@ -35,10 +35,18 @@ public final class SpaceSwitchService {
             previousSpaceID: history.previousSpace(on: origin.displayID)
         ) else { return nil }
 
-        emitter.emit(plan.direction, steps: plan.steps)
+        emitter.emit(plan.direction, steps: plan.steps, onDisplay: origin.displayID)
         prediction.record(plan.landing, at: now())
         history.observe([origin, plan.landing])
         return plan.landing
+    }
+
+    public func followWindows(in windowSpaces: [SpaceID]) -> DisplaySpaces? {
+        guard let spaceID = ActivationFollow.targetSpace(
+            windowSpaces: windowSpaces,
+            displays: repository.allDisplays()
+        ) else { return nil }
+        return perform(.space(spaceID))
     }
 
     public func hasLanded(on landing: DisplaySpaces) -> Bool {
@@ -53,5 +61,10 @@ public final class SpaceSwitchService {
 
     public func activeDisplaySpaces() -> DisplaySpaces? {
         repository.spacesOfActiveDisplay()
+    }
+
+    private func observedOrigin(for target: SwitchTarget) -> DisplaySpaces? {
+        guard case .space(let spaceID) = target else { return repository.spacesUnderCursor() }
+        return repository.allDisplays().first { $0.index(of: spaceID) != nil }
     }
 }

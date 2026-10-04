@@ -10,15 +10,19 @@ public final class DockSwipeGestureEmitter: SpaceGestureEmitter {
     private static let flingVelocity = 9999.0
     private static let phases: [DockSwipeEvent.Phase] = [.began, .changed, .ended]
 
+    private let cursorRouter = CursorRouter()
+
     public init() {}
 
-    public func emit(_ direction: SwitchDirection, steps: Int) {
+    public func emit(_ direction: SwitchDirection, steps: Int, onDisplay displayID: String?) {
         guard steps > 0 else { return }
-        for _ in 0..<steps {
-            if DockSwipeEvent.requiresIOHIDPayload {
-                postValidatedSwipe(direction)
-            } else {
-                postBareSwipe(direction, velocity: Self.velocityPerStep * Double(steps))
+        cursorRouter.route(toDisplay: displayID) {
+            for _ in 0..<steps {
+                if DockSwipeEvent.requiresIOHIDPayload {
+                    postValidatedSwipe(direction)
+                } else {
+                    postBareSwipe(direction, velocity: Self.velocityPerStep * Double(steps))
+                }
             }
         }
     }

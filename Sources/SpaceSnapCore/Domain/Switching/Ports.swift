@@ -1,3 +1,5 @@
+import Darwin
+
 @MainActor
 public protocol SpaceRepository: AnyObject {
     func allDisplays() -> [DisplaySpaces]
@@ -7,5 +9,10 @@ public protocol SpaceRepository: AnyObject {
 
 @MainActor
 public protocol SpaceGestureEmitter: AnyObject {
-    func emit(_ direction: SwitchDirection, steps: Int)
+    func emit(_ direction: SwitchDirection, steps: Int, onDisplay displayID: String?)
+}
+
+@MainActor
+public protocol AppWindowLocator: AnyObject {
+    func windowSpaces(ownedBy processID: pid_t) -> [SpaceID]
 }

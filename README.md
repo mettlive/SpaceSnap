@@ -9,6 +9,7 @@ Instant macOS Spaces switching — no slide animation, no lag after it. A small 
 - **Jump to desktop 1–10** — modifier + digit (`⌃1` … `⌃0` by default). Fullscreen apps are skipped when numbering, just like macOS does.
 - **Back to the previous desktop** — `` ⌃` `` by default.
 - **Empty-desktop guard** — about 0.4 s after you land on a desktop with no windows, macOS activates some other app and yanks you to its desktop. SpaceSnap takes focus itself so that never happens.
+- **Instant jump to an app's desktop** (optional) — clicking an app in the Dock, `⌘Tab`, opening a link or a notification switches to the desktop with that app's window instantly instead of with the Dock's animation. Works across displays.
 - **Indicator** — current desktop number in the menu bar and a short overlay on every switch.
 - Switching always targets the display under the pointer (same as the native `⌃←/→`), with no rubber-band bounce at the first/last desktop.
 
@@ -58,13 +59,17 @@ macOS has no supported way to disable the Spaces slide animation. SpaceSnap post
 
 Conflicting Mission Control shortcuts ("Move left/right a space", "Switch to Desktop N") are disabled only while SpaceSnap runs, and only those that match your SpaceSnap shortcuts. This changes the live WindowServer state, not `com.apple.symbolichotkeys`, and they are re-enabled on quit.
 
+With **Instant jump to an app's desktop** enabled, SpaceSnap turns off the Dock's own animated follow (the hidden `com.apple.dock workspaces-auto-swoosh` preference, which requires a Dock restart) and switches itself when an app without windows on a visible desktop is activated. It respects **Desktop & Dock → When switching to an application, switch to a Space with open windows for the application**. The original Dock preference is restored when the option is turned off or SpaceSnap quits.
+
 ## Limitations
 
 - Relies on undocumented APIs (`SkyLight`, private `CGEvent` fields). Any macOS release can break them; the symptom is that switching silently stops working.
 - macOS 26.0–26.5 is not supported: a WindowServer bug there can leave the destination desktop's windows unpainted after an instant switch.
 - The macOS 27 path is ported from noswoosh and has not been verified by this project yet.
 - With **Automatically rearrange Spaces based on most recent use** enabled, desktop order keeps changing; turn it off in **Desktop & Dock**.
-- If SpaceSnap crashes, the Mission Control shortcuts it disabled stay off until you log out or relaunch and quit it.
+- If SpaceSnap crashes, the Mission Control shortcuts it disabled stay off until you log out or relaunch and quit it. With instant app jumps enabled, the Dock also stops following apps to their desktops until SpaceSnap runs again.
+- An app jump to a desktop on another display briefly moves the pointer to that display (~0.1 s): the Dock always switches the display under the pointer.
+- An app activated within 0.5 s after a desktop switch is not followed; this is what keeps macOS from yanking you off an empty desktop.
 
 ## Development
 

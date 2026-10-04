@@ -15,6 +15,13 @@ struct GeneralSettingsTab: View {
                     .foregroundStyle(.secondary)
             }
 
+            VStack(alignment: .leading, spacing: 4) {
+                Toggle("Мгновенный переход к приложению (Dock, ⌘Tab)", isOn: $model.settings.followsAppActivationInstantly)
+                Text("Заменяет анимированный переход Dock на стол с окном приложения. При включении и выключении Dock перезапускается; при выходе из SpaceSnap стандартное поведение возвращается.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Toggle("Показывать номер рабочего стола в строке меню", isOn: $model.settings.showsSpaceNumberInMenuBar)
 
             Divider()

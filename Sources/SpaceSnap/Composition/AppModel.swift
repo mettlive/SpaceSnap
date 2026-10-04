@@ -15,6 +15,8 @@ final class AppModel {
 
     private let settingsStore: SettingsStore
     private let service: SpaceSwitchService
+    private let followService: ActivationFollowService
+    private let dockFollowPreference: DockSpaceFollowPreference
     private let shortcutCoordinator: SystemShortcutCoordinator
     private let emptyDesktopGuard: EmptyDesktopGuard
     private let overlay: SpaceOverlayController
@@ -39,11 +41,18 @@ final class AppModel {
         self.settingsStore = settingsStore
         self.settings = settingsStore.load()
         self.isAccessibilityGranted = AccessibilityPermission.isGranted
-        self.service = SpaceSwitchService(
+        let service = SpaceSwitchService(
             repository: SkyLightSpaceRepository(),
             emitter: DockSwipeGestureEmitter(),
             predictionWindow: DockSwipeGestureEmitter.predictionWindow
         )
+        self.service = service
+        self.followService = ActivationFollowService(
+            locator: CGWindowAppWindowLocator(),
+            switcher: service,
+            landingQuietPeriod: 0.5
+        )
+        self.dockFollowPreference = DockSpaceFollowPreference()
         self.shortcutCoordinator = SystemShortcutCoordinator(controller: SkyLightSystemShortcutController())
         self.emptyDesktopGuard = EmptyDesktopGuard()
         self.overlay = SpaceOverlayController()
@@ -62,9 +71,11 @@ final class AppModel {
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil,
             queue: nil
-        ) { [weak self] _ in
+        ) { [weak self] notification in
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
+            let processID = app?.processIdentifier
             MainActor.assumeIsolated {
-                self?.refreshActiveSpaces()
+                self?.appDidActivate(processID: processID)
             }
         }
         workspaceObservers = [spaceObserver, activationObserver]
@@ -73,23 +84,21 @@ final class AppModel {
     func start() {
         service.recordSettledSpaces()
         refreshActiveSpaces()
-        if AccessibilityPermission.isGranted {
-            isAccessibilityGranted = true
-            applySettings()
-        } else {
-            isAccessibilityGranted = false
-            AccessibilityPermission.requestPrompt()
-            pollAccessibility()
-        }
+        isAccessibilityGranted = AccessibilityPermission.isGranted
+        applySettings()
+        guard !isAccessibilityGranted else { return }
+        AccessibilityPermission.requestPrompt()
+        pollAccessibility()
     }
 
     func handle(_ target: SwitchTarget) {
         guard let landing = service.perform(target) else { return }
-        pendingOverlay = settings.showsOverlay ? PendingOverlay(landing: landing, requestedAt: .now) : nil
+        present(landing)
     }
 
-    func restoreSystemShortcuts() {
+    func restoreSystemState() {
         shortcutCoordinator.restore()
+        dockFollowPreference.restore()
     }
 
     func relaunch() {
@@ -119,6 +128,11 @@ final class AppModel {
 
     private func applySettings() {
         settingsStore.save(settings)
+        if settings.followsAppActivationInstantly && isAccessibilityGranted {
+            dockFollowPreference.suppress()
+        } else {
+            dockFollowPreference.restore()
+        }
         guard isAccessibilityGranted else { return }
         let actions = settings.hotkeys.actions()
         _ = hotkeyRegistry.register(actions)
@@ -135,11 +149,28 @@ final class AppModel {
         activeSpaces = service.activeDisplaySpaces()
     }
 
+    private func present(_ landing: DisplaySpaces) {
+        pendingOverlay = settings.showsOverlay ? PendingOverlay(landing: landing, requestedAt: .now) : nil
+    }
+
+    private func appDidActivate(processID: pid_t?) {
+        refreshActiveSpaces()
+        guard settings.followsAppActivationInstantly,
+              isAccessibilityGranted,
+              let processID,
+              processID != ProcessInfo.processInfo.processIdentifier,
+              DockSpaceFollowPreference.switchesToAppSpaceOnActivation,
+              let landing = followService.appDidActivate(processID: processID)
+        else { return }
+        present(landing)
+    }
+
     private func spaceDidChange() {
         if settings.preventsEmptyDesktopYank {
             emptyDesktopGuard.handleSpaceChange()
         }
         refreshActiveSpaces()
+        followService.spaceDidChange()
         showOverlayIfLanded()
         scheduleSettle()
     }

@@ -16,6 +16,14 @@ public enum DisplayLocator {
         return uuid(of: displayID)
     }
 
+    static func bounds(ofDisplayID displayID: String) -> CGRect? {
+        var count: UInt32 = 0
+        guard CGGetActiveDisplayList(0, nil, &count) == .success, count > 0 else { return nil }
+        var displays = [CGDirectDisplayID](repeating: 0, count: Int(count))
+        guard CGGetActiveDisplayList(count, &displays, &count) == .success else { return nil }
+        return displays.first { uuid(of: $0) == displayID }.map(CGDisplayBounds)
+    }
+
     private static func screenUnderCursor() -> NSScreen? {
         let location = NSEvent.mouseLocation
         return NSScreen.screens.first { NSMouseInRect(location, $0.frame, false) } ?? NSScreen.main
