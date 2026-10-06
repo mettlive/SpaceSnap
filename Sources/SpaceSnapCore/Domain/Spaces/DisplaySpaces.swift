@@ -39,10 +39,6 @@ public struct DisplaySpaces: Sendable, Equatable {
         desktopNumber(at: currentIndex)
     }
 
-    public var desktopCount: Int {
-        spaces.lazy.filter { $0.kind == .desktop }.count
-    }
-
     public func index(of spaceID: SpaceID) -> Int? {
         spaces.firstIndex { $0.id == spaceID }
     }

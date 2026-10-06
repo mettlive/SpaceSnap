@@ -2,6 +2,8 @@ import SwiftUI
 import SpaceSnapCore
 
 struct SpaceOverlayView: View {
+    static let size = CGSize(width: 180, height: 120)
+
     let displaySpaces: DisplaySpaces?
 
     var body: some View {
@@ -9,7 +11,7 @@ struct SpaceOverlayView: View {
             centerContent
             dots
         }
-        .frame(width: 180, height: 120)
+        .frame(width: Self.size.width, height: Self.size.height)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 

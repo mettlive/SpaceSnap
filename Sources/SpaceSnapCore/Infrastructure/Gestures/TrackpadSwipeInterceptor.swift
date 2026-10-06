@@ -7,11 +7,14 @@ public final class TrackpadSwipeInterceptor {
     private var tap: CFMachPort?
     private var source: CFRunLoopSource?
     private var watchdog: Timer?
-    private var isTracking = false
-    private var hasFired = false
+    private var tracker = SwipeTracker()
 
     public init(onSwipe: @escaping @MainActor (SwitchDirection) -> Void) {
         self.onSwipe = onSwipe
+    }
+
+    isolated deinit {
+        uninstall()
     }
 
     public func setEnabled(_ enabled: Bool) -> Bool {
@@ -61,7 +64,7 @@ public final class TrackpadSwipeInterceptor {
         }
         tap = nil
         source = nil
-        resetTracking()
+        tracker.reset()
     }
 
     private func reenableIfDisabled() {
@@ -71,7 +74,7 @@ public final class TrackpadSwipeInterceptor {
 
     private func shouldPass(type: CGEventType, event: CGEvent) -> Bool {
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-            resetTracking()
+            tracker.reset()
             reenableIfDisabled()
             return true
         }
@@ -80,9 +83,9 @@ public final class TrackpadSwipeInterceptor {
         }
         let eventType = event.getIntegerValueField(DockSwipeEvent.eventType)
         if eventType == DockSwipeEvent.dockControlEventType, isHorizontalDockSwipe(event) {
-            return shouldPassSwipePhase(event)
+            return applySwipePhase(event)
         }
-        return !(eventType == DockSwipeEvent.gestureEventType && isTracking)
+        return !(eventType == DockSwipeEvent.gestureEventType && tracker.isTracking)
     }
 
     private func isHorizontalDockSwipe(_ event: CGEvent) -> Bool {
@@ -90,41 +93,32 @@ public final class TrackpadSwipeInterceptor {
             && event.getIntegerValueField(DockSwipeEvent.swipeMotion) == DockSwipeEvent.horizontalMotion
     }
 
-    private func shouldPassSwipePhase(_ event: CGEvent) -> Bool {
-        switch DockSwipeEvent.Phase(rawValue: event.getIntegerValueField(DockSwipeEvent.phase)) {
-        case .began:
-            isTracking = true
-            hasFired = false
-            return false
-        case .changed:
-            fireIfPending(magnitude: event.getDoubleValueField(DockSwipeEvent.swipeProgress))
-            return !isTracking
-        case .ended:
-            let wasTracking = isTracking
-            fireIfPending(magnitude: event.getDoubleValueField(DockSwipeEvent.swipeVelocityX))
-            resetTracking()
-            guard wasTracking else { return true }
-            guard DockSwipeEvent.requiresIOHIDPayload else { return false }
+    private func applySwipePhase(_ event: CGEvent) -> Bool {
+        let phase = DockSwipeEvent.Phase(rawValue: event.getIntegerValueField(DockSwipeEvent.phase))
+        let magnitudeField = phase == .ended ? DockSwipeEvent.swipeVelocityX : DockSwipeEvent.swipeProgress
+        let decision = tracker.handle(
+            phase: Self.trackerPhase(phase),
+            magnitude: event.getDoubleValueField(magnitudeField),
+            neutralizesOnEnded: DockSwipeEvent.requiresIOHIDPayload
+        )
+        if let direction = decision.firedDirection {
+            onSwipe(direction)
+        }
+        if decision.neutralizeEvent {
             event.setDoubleValueField(DockSwipeEvent.swipeVelocityX, value: 0)
             event.setDoubleValueField(DockSwipeEvent.swipeVelocityY, value: 0)
             event.setDoubleValueField(DockSwipeEvent.swipeProgress, value: 0)
-            return true
-        case .cancelled:
-            resetTracking()
-            return false
-        case nil:
-            return !isTracking
         }
+        return decision.shouldPass
     }
 
-    private func fireIfPending(magnitude: Double) {
-        guard isTracking, !hasFired, magnitude != 0 else { return }
-        hasFired = true
-        onSwipe(magnitude > 0 ? .right : .left)
-    }
-
-    private func resetTracking() {
-        isTracking = false
-        hasFired = false
+    private static func trackerPhase(_ phase: DockSwipeEvent.Phase?) -> SwipeTracker.Phase? {
+        switch phase {
+        case .began: .began
+        case .changed: .changed
+        case .ended: .ended
+        case .cancelled: .cancelled
+        case nil: nil
+        }
     }
 }

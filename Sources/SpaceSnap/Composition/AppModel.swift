@@ -6,27 +6,25 @@ import SpaceSnapCore
 @Observable
 final class AppModel {
     var settings: AppSettings {
-        didSet { applySettings() }
+        didSet { settingsDidChange(from: oldValue) }
     }
 
     private(set) var activeSpaces: DisplaySpaces?
     private(set) var isAccessibilityGranted: Bool
     private(set) var needsRelaunch = false
+    private(set) var unavailableCombos: Set<KeyCombo> = []
 
     private let settingsStore: SettingsStore
     private let service: SpaceSwitchService
-    private let followService: ActivationFollowService
-    private let dockFollowPreference: DockSpaceFollowPreference
-    private let shortcutCoordinator: SystemShortcutCoordinator
-    private let emptyDesktopGuard: EmptyDesktopGuard
-    private let overlay: SpaceOverlayController
-    private var accessibilityPollTask: Task<Void, Never>?
-    private var settleTask: Task<Void, Never>?
-    private var followTask: Task<Void, Never>?
-    private var workspaceObservers: [NSObjectProtocol] = []
+    private let dockFollowPreference = DockSpaceFollowPreference()
+    private let windowProbe = ActiveSpaceWindowProbe()
+    private let overlay = SpaceOverlayController()
 
     @ObservationIgnored
     private var overlayTask: Task<Void, Never>?
+
+    @ObservationIgnored
+    private var workspaceObserver: WorkspaceEventObserver?
 
     @ObservationIgnored
     private lazy var interceptor = TrackpadSwipeInterceptor { [weak self] direction in
@@ -34,59 +32,44 @@ final class AppModel {
     }
 
     @ObservationIgnored
-    private lazy var hotkeyRegistry = CarbonHotkeyRegistry { [weak self] target in
-        self?.handle(target)
+    private lazy var hotkeys = HotkeyService(
+        registry: CarbonHotkeyRegistry { [weak self] target in
+            self?.handle(target)
+        },
+        systemShortcuts: SystemShortcutCoordinator(controller: SkyLightSystemShortcutController())
+    )
+
+    @ObservationIgnored
+    private lazy var followService = ActivationFollowService(
+        locator: CGWindowAppWindowLocator(),
+        switcher: service,
+        ownProcessID: ProcessInfo.processInfo.processIdentifier,
+        landingQuietPeriod: 0.5,
+        activationDelay: .milliseconds(80)
+    ) { [weak self] landing in
+        self?.present(landing)
     }
 
     init(settingsStore: SettingsStore = SettingsStore()) {
         self.settingsStore = settingsStore
         self.settings = settingsStore.load()
         self.isAccessibilityGranted = AccessibilityPermission.isGranted
-        let service = SpaceSwitchService(
+        self.service = SpaceSwitchService(
             repository: SkyLightSpaceRepository(),
             emitter: DockSwipeGestureEmitter(),
             predictionWindow: DockSwipeGestureEmitter.predictionWindow
         )
-        self.service = service
-        self.followService = ActivationFollowService(
-            locator: CGWindowAppWindowLocator(),
-            switcher: service,
-            landingQuietPeriod: 0.5
-        )
-        self.dockFollowPreference = DockSpaceFollowPreference()
-        self.shortcutCoordinator = SystemShortcutCoordinator(controller: SkyLightSystemShortcutController())
-        self.emptyDesktopGuard = EmptyDesktopGuard()
-        self.overlay = SpaceOverlayController()
-
-        let center = NSWorkspace.shared.notificationCenter
-        let spaceObserver = center.addObserver(
-            forName: NSWorkspace.activeSpaceDidChangeNotification,
-            object: nil,
-            queue: nil
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.spaceDidChange()
-            }
-        }
-        let activationObserver = center.addObserver(
-            forName: NSWorkspace.didActivateApplicationNotification,
-            object: nil,
-            queue: nil
-        ) { [weak self] notification in
-            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication
-            let processID = app?.processIdentifier
-            MainActor.assumeIsolated {
-                self?.appDidActivate(processID: processID)
-            }
-        }
-        workspaceObservers = [spaceObserver, activationObserver]
     }
 
     func start() {
         service.recordSettledSpaces()
         refreshActiveSpaces()
+        workspaceObserver = WorkspaceEventObserver(
+            onSpaceChange: { [weak self] in self?.spaceDidChange() },
+            onAppActivation: { [weak self] processID in self?.appDidActivate(processID: processID) }
+        )
         isAccessibilityGranted = AccessibilityPermission.isGranted
-        applySettings()
+        applySystemIntegration()
         guard !isAccessibilityGranted else { return }
         AccessibilityPermission.requestPrompt()
         pollAccessibility()
@@ -97,8 +80,17 @@ final class AppModel {
         present(landing)
     }
 
+    func setHotkeysSuspended(_ suspended: Bool) {
+        if suspended {
+            hotkeys.suspend()
+        } else {
+            hotkeys.resume()
+        }
+        unavailableCombos = hotkeys.unavailableCombos
+    }
+
     func restoreSystemState() {
-        shortcutCoordinator.restore()
+        hotkeys.restore()
         dockFollowPreference.restore()
     }
 
@@ -113,31 +105,62 @@ final class AppModel {
         NSApp.terminate(nil)
     }
 
+    private var followsAppActivation: Bool {
+        settings.followsAppActivationInstantly
+            && isAccessibilityGranted
+            && DockSpaceFollowPreference.switchesToAppSpaceOnActivation
+    }
+
     private func pollAccessibility() {
-        accessibilityPollTask = Task { [weak self] in
+        Task { [weak self] in
             while true {
                 try? await Task.sleep(for: .seconds(1))
-                guard let self, !Task.isCancelled else { return }
+                guard let self else { return }
                 if AccessibilityPermission.isGranted {
                     self.isAccessibilityGranted = true
-                    self.applySettings()
+                    self.applySystemIntegration()
                     return
                 }
             }
         }
     }
 
-    private func applySettings() {
+    private func settingsDidChange(from oldSettings: AppSettings) {
+        guard settings != oldSettings else { return }
         settingsStore.save(settings)
+        if settings.followsAppActivationInstantly != oldSettings.followsAppActivationInstantly {
+            applyDockFollow()
+        }
+        if settings.hotkeys != oldSettings.hotkeys {
+            applyHotkeys()
+        }
+        if settings.interceptsTrackpadSwipes != oldSettings.interceptsTrackpadSwipes {
+            applyInterceptor()
+        }
+    }
+
+    private func applySystemIntegration() {
+        applyDockFollow()
+        applyHotkeys()
+        applyInterceptor()
+    }
+
+    private func applyDockFollow() {
         if settings.followsAppActivationInstantly && isAccessibilityGranted {
             dockFollowPreference.suppress()
         } else {
             dockFollowPreference.restore()
         }
+    }
+
+    private func applyHotkeys() {
         guard isAccessibilityGranted else { return }
-        let actions = settings.hotkeys.actions()
-        _ = hotkeyRegistry.register(actions)
-        shortcutCoordinator.reconcile(with: Set(actions.keys))
+        hotkeys.apply(settings.hotkeys)
+        unavailableCombos = hotkeys.unavailableCombos
+    }
+
+    private func applyInterceptor() {
+        guard isAccessibilityGranted else { return }
         if settings.interceptsTrackpadSwipes {
             needsRelaunch = !interceptor.setEnabled(true)
         } else {
@@ -153,58 +176,27 @@ final class AppModel {
     private func present(_ landing: DisplaySpaces) {
         overlayTask?.cancel()
         guard settings.showsOverlay else { return }
-        overlayTask = Task { [weak self] in
-            let deadline = ContinuousClock.now + OverlayTiming.landingTimeout
-            while ContinuousClock.now < deadline {
-                guard let self, !Task.isCancelled else { return }
-                if self.service.hasLanded(on: landing) {
-                    self.overlay.show(landing)
-                    return
-                }
-                try? await Task.sleep(for: OverlayTiming.pollInterval)
-            }
+        overlayTask = Task { [weak self, service] in
+            guard await service.waitForLanding(on: landing) else { return }
+            self?.overlay.show(landing)
         }
     }
 
     private func appDidActivate(processID: pid_t?) {
         refreshActiveSpaces()
-        followTask?.cancel()
-        guard settings.followsAppActivationInstantly,
-              isAccessibilityGranted,
-              let processID,
-              processID != ProcessInfo.processInfo.processIdentifier,
-              DockSpaceFollowPreference.switchesToAppSpaceOnActivation
-        else { return }
-        followTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(80))
-            guard let self, !Task.isCancelled,
-                  let landing = self.followService.appDidActivate(processID: processID)
-            else { return }
-            self.present(landing)
+        guard let processID, followsAppActivation else {
+            followService.cancelPendingFollow()
+            return
         }
+        followService.appDidActivate(processID: processID)
     }
 
     private func spaceDidChange() {
-        if settings.preventsEmptyDesktopYank {
-            emptyDesktopGuard.handleSpaceChange()
+        if settings.preventsEmptyDesktopYank, !windowProbe.activeSpaceHasWindows() {
+            NSApp.activate(ignoringOtherApps: true)
         }
         refreshActiveSpaces()
         followService.spaceDidChange()
-        followTask?.cancel()
-        scheduleSettle()
+        service.spaceDidChange()
     }
-
-    private func scheduleSettle() {
-        settleTask?.cancel()
-        settleTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(200))
-            guard let self, !Task.isCancelled else { return }
-            self.service.recordSettledSpaces()
-        }
-    }
-}
-
-private enum OverlayTiming {
-    static let landingTimeout: Duration = .seconds(1)
-    static let pollInterval: Duration = .milliseconds(4)
 }

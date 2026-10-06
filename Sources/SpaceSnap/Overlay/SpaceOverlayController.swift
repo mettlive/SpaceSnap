@@ -10,7 +10,7 @@ final class SpaceOverlayController {
 
     init() {
         let hostingView = NSHostingView(rootView: SpaceOverlayView(displaySpaces: nil))
-        hostingView.frame = NSRect(x: 0, y: 0, width: 180, height: 120)
+        hostingView.frame = NSRect(origin: .zero, size: SpaceOverlayView.size)
 
         let panel = NSPanel(
             contentRect: hostingView.frame,
@@ -50,6 +50,8 @@ final class SpaceOverlayController {
                 context.duration = 0.2
                 self.panel.animator().alphaValue = 0
             }
+            guard !Task.isCancelled else { return }
+            self.panel.orderOut(nil)
         }
     }
 

@@ -16,3 +16,11 @@ public protocol SpaceGestureEmitter: AnyObject {
 public protocol AppWindowLocator: AnyObject {
     func windowSpaces(ownedBy processID: pid_t) -> [SpaceID]
 }
+
+@MainActor
+public protocol HotkeyRegistry: AnyObject {
+    func register(_ actions: [KeyCombo: SwitchTarget]) -> Set<KeyCombo>
+    func unregisterAll()
+}
+
+public typealias Sleep = @MainActor (Duration) async throws -> Void

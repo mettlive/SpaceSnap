@@ -5,19 +5,26 @@ public final class SpaceSwitchService {
     private let repository: SpaceRepository
     private let emitter: SpaceGestureEmitter
     private let now: () -> Date
+    private let timing: SwitchTiming
+    private let sleep: Sleep
     private var prediction: LandingPrediction
     private var history = SpaceHistory()
+    private var pendingSettle: Task<Void, Never>?
 
     public init(
         repository: SpaceRepository,
         emitter: SpaceGestureEmitter,
         predictionWindow: TimeInterval,
-        now: @escaping () -> Date = Date.init
+        timing: SwitchTiming = .standard,
+        now: @escaping () -> Date = Date.init,
+        sleep: @escaping Sleep = { try await Task.sleep(for: $0) }
     ) {
         self.repository = repository
         self.emitter = emitter
         self.prediction = LandingPrediction(window: predictionWindow)
+        self.timing = timing
         self.now = now
+        self.sleep = sleep
     }
 
     @discardableResult
@@ -55,8 +62,28 @@ public final class SpaceSwitchService {
         }
     }
 
+    public func waitForLanding(on landing: DisplaySpaces) async -> Bool {
+        for _ in 0..<timing.landingPollCount {
+            guard !Task.isCancelled else { return false }
+            if hasLanded(on: landing) { return true }
+            guard (try? await sleep(timing.landingPollInterval)) != nil else { return false }
+        }
+        return false
+    }
+
     public func recordSettledSpaces() {
         history.observe(repository.allDisplays())
+    }
+
+    @discardableResult
+    public func spaceDidChange() -> Task<Void, Never> {
+        pendingSettle?.cancel()
+        let settle = Task { [weak self, sleep, timing] in
+            guard (try? await sleep(timing.settleDelay)) != nil, !Task.isCancelled else { return }
+            self?.recordSettledSpaces()
+        }
+        pendingSettle = settle
+        return settle
     }
 
     public func activeDisplaySpaces() -> DisplaySpaces? {

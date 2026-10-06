@@ -1,7 +1,7 @@
 import Carbon.HIToolbox
 
 @MainActor
-public final class CarbonHotkeyRegistry {
+public final class CarbonHotkeyRegistry: HotkeyRegistry {
     private struct Registration {
         let reference: EventHotKeyRef
         let target: SwitchTarget
@@ -15,6 +15,13 @@ public final class CarbonHotkeyRegistry {
 
     public init(onHotkey: @escaping @MainActor (SwitchTarget) -> Void) {
         self.onHotkey = onHotkey
+    }
+
+    isolated deinit {
+        unregisterAll()
+        if let handler {
+            RemoveEventHandler(handler)
+        }
     }
 
     public func register(_ actions: [KeyCombo: SwitchTarget]) -> Set<KeyCombo> {
@@ -84,11 +91,19 @@ public final class CarbonHotkeyRegistry {
     }
 
     private static func carbonModifiers(_ modifiers: KeyModifiers) -> UInt32 {
-        var result = 0
-        if modifiers.contains(.control) { result |= controlKey }
-        if modifiers.contains(.option) { result |= optionKey }
-        if modifiers.contains(.shift) { result |= shiftKey }
-        if modifiers.contains(.command) { result |= cmdKey }
-        return UInt32(result)
+        KeyModifiers.displayOrder.reduce(into: UInt32(0)) { result, modifier in
+            guard modifiers.contains(modifier) else { return }
+            result |= carbonFlag(for: modifier)
+        }
+    }
+
+    private static func carbonFlag(for modifier: KeyModifiers) -> UInt32 {
+        switch modifier {
+        case .control: UInt32(controlKey)
+        case .option: UInt32(optionKey)
+        case .shift: UInt32(shiftKey)
+        case .command: UInt32(cmdKey)
+        default: 0
+        }
     }
 }

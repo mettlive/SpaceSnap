@@ -4,6 +4,7 @@ import SpaceSnapCore
 
 struct ShortcutRecorder: View {
     @Binding var combo: KeyCombo?
+    let onRecordingChange: (Bool) -> Void
     @State private var isRecording = false
     @State private var monitor: Any?
 
@@ -27,6 +28,7 @@ struct ShortcutRecorder: View {
 
     private func startRecording() {
         isRecording = true
+        onRecordingChange(true)
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             process(event)
             return nil
@@ -40,7 +42,7 @@ struct ShortcutRecorder: View {
             return
         }
 
-        let modifierFlags = event.modifierFlags.intersection([.control, .option, .shift, .command])
+        let modifierFlags = event.modifierFlags.intersection(NSEventModifierMapping.relevantFlags)
         if modifierFlags.isEmpty, keyCode == UInt16(kVK_Delete) || keyCode == UInt16(kVK_ForwardDelete) {
             combo = nil
             stopRecording()
@@ -57,10 +59,12 @@ struct ShortcutRecorder: View {
     }
 
     private func stopRecording() {
+        guard isRecording else { return }
         if let monitor {
             NSEvent.removeMonitor(monitor)
         }
         monitor = nil
         isRecording = false
+        onRecordingChange(false)
     }
 }

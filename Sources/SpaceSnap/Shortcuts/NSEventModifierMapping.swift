@@ -2,21 +2,21 @@ import AppKit
 import SpaceSnapCore
 
 enum NSEventModifierMapping {
+    static let relevantFlags: NSEvent.ModifierFlags = [.control, .option, .shift, .command]
+
     static func keyModifiers(from flags: NSEvent.ModifierFlags) -> KeyModifiers {
-        var result: KeyModifiers = []
-        if flags.contains(.control) { result.insert(.control) }
-        if flags.contains(.option) { result.insert(.option) }
-        if flags.contains(.shift) { result.insert(.shift) }
-        if flags.contains(.command) { result.insert(.command) }
-        return result
+        KeyModifiers.displayOrder.reduce(into: KeyModifiers()) { result, modifier in
+            if flags.contains(nsEventFlag(for: modifier)) { result.insert(modifier) }
+        }
     }
 
-    static func modifierFlags(from modifiers: KeyModifiers) -> NSEvent.ModifierFlags {
-        var flags: NSEvent.ModifierFlags = []
-        if modifiers.contains(.control) { flags.insert(.control) }
-        if modifiers.contains(.option) { flags.insert(.option) }
-        if modifiers.contains(.shift) { flags.insert(.shift) }
-        if modifiers.contains(.command) { flags.insert(.command) }
-        return flags
+    private static func nsEventFlag(for modifier: KeyModifiers) -> NSEvent.ModifierFlags {
+        switch modifier {
+        case .control: .control
+        case .option: .option
+        case .shift: .shift
+        case .command: .command
+        default: []
+        }
     }
 }

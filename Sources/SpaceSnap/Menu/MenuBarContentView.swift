@@ -45,7 +45,7 @@ struct MenuBarContentView: View {
         case .desktop:
             let number = spaces.desktopNumber(at: index) ?? 0
             Button {
-                model.handle(.desktop(number))
+                model.handle(.space(space.id))
             } label: {
                 HStack {
                     if index == spaces.currentIndex {

@@ -30,12 +30,7 @@ public final class DockSwipeGestureEmitter: SpaceGestureEmitter {
     private func postBareSwipe(_ direction: SwitchDirection, velocity: Double) {
         let sign = Double(direction.offset)
         for phase in Self.phases {
-            guard let event = CGEvent(source: nil) else { return }
-            event.setIntegerValueField(DockSwipeEvent.eventType, value: DockSwipeEvent.dockControlEventType)
-            event.setIntegerValueField(DockSwipeEvent.hidType, value: DockSwipeEvent.dockSwipeHIDType)
-            event.setIntegerValueField(DockSwipeEvent.phase, value: phase.rawValue)
-            event.setDoubleValueField(DockSwipeEvent.swipeProgress, value: Self.progressMagnitude * sign)
-            event.setIntegerValueField(DockSwipeEvent.swipeMotion, value: DockSwipeEvent.horizontalMotion)
+            guard let event = makeDockSwipeEvent(phase: phase, sign: sign) else { return }
             event.setDoubleValueField(DockSwipeEvent.swipeVelocityX, value: velocity * sign)
             event.setDoubleValueField(DockSwipeEvent.swipeVelocityY, value: velocity * sign)
             event.setIntegerValueField(.eventSourceUserData, value: DockSwipeEvent.appTag)
@@ -63,16 +58,21 @@ public final class DockSwipeGestureEmitter: SpaceGestureEmitter {
     }
 
     private func validatedDockEvent(_ phase: DockSwipeEvent.Phase, sign: Double) -> CGEvent? {
+        guard let event = makeDockSwipeEvent(phase: phase, sign: sign) else { return nil }
+        event.setDoubleValueField(DockSwipeEvent.swipePositionX, value: 0.1)
+        if phase == .ended {
+            event.setDoubleValueField(DockSwipeEvent.swipeVelocityX, value: Self.flingVelocity * sign)
+        }
+        return event
+    }
+
+    private func makeDockSwipeEvent(phase: DockSwipeEvent.Phase, sign: Double) -> CGEvent? {
         guard let event = CGEvent(source: nil) else { return nil }
         event.setIntegerValueField(DockSwipeEvent.eventType, value: DockSwipeEvent.dockControlEventType)
         event.setIntegerValueField(DockSwipeEvent.hidType, value: DockSwipeEvent.dockSwipeHIDType)
         event.setIntegerValueField(DockSwipeEvent.phase, value: phase.rawValue)
         event.setDoubleValueField(DockSwipeEvent.swipeProgress, value: Self.progressMagnitude * sign)
         event.setIntegerValueField(DockSwipeEvent.swipeMotion, value: DockSwipeEvent.horizontalMotion)
-        event.setDoubleValueField(DockSwipeEvent.swipePositionX, value: 0.1)
-        if phase == .ended {
-            event.setDoubleValueField(DockSwipeEvent.swipeVelocityX, value: Self.flingVelocity * sign)
-        }
         return event
     }
 

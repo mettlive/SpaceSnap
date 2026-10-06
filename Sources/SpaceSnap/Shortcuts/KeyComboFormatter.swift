@@ -3,12 +3,20 @@ import SpaceSnapCore
 
 enum KeyComboFormatter {
     static func modifierSymbols(_ modifiers: KeyModifiers) -> String {
-        var result = ""
-        if modifiers.contains(.control) { result += "⌃" }
-        if modifiers.contains(.option) { result += "⌥" }
-        if modifiers.contains(.shift) { result += "⇧" }
-        if modifiers.contains(.command) { result += "⌘" }
-        return result
+        KeyModifiers.displayOrder
+            .filter { modifiers.contains($0) }
+            .map(symbol(for:))
+            .joined()
+    }
+
+    static func symbol(for modifier: KeyModifiers) -> String {
+        switch modifier {
+        case .control: "⌃"
+        case .option: "⌥"
+        case .shift: "⇧"
+        case .command: "⌘"
+        default: ""
+        }
     }
 
     static func string(for combo: KeyCombo) -> String {

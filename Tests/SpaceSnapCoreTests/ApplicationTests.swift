@@ -30,8 +30,12 @@ private final class RecordingEmitter: SpaceGestureEmitter {
 @MainActor
 private final class StubWindowLocator: AppWindowLocator {
     var spaces: [SpaceID] = []
+    private(set) var requestedProcesses: [pid_t] = []
 
-    func windowSpaces(ownedBy processID: pid_t) -> [SpaceID] { spaces }
+    func windowSpaces(ownedBy processID: pid_t) -> [SpaceID] {
+        requestedProcesses.append(processID)
+        return spaces
+    }
 }
 
 @MainActor
@@ -49,13 +53,13 @@ private final class StubWindowLocator: AppWindowLocator {
         #expect(third == nil)
     }
 
-    @Test func previousReturnsToLastSettledSpace() throws {
+    @Test func previousReturnsToSpaceSettledAfterChange() async throws {
         let repository = StubRepository(makeDisplay([.desktop, .desktop, .desktop], current: 0))
         let emitter = RecordingEmitter()
-        let service = SpaceSwitchService(repository: repository, emitter: emitter, predictionWindow: 0)
+        let service = SpaceSwitchService(repository: repository, emitter: emitter, predictionWindow: 0, sleep: { _ in })
         service.recordSettledSpaces()
         repository.display = makeDisplay([.desktop, .desktop, .desktop], current: 2)
-        service.recordSettledSpaces()
+        await service.spaceDidChange().value
 
         let landing = try #require(service.perform(.previous))
 
@@ -91,6 +95,41 @@ private final class StubWindowLocator: AppWindowLocator {
         #expect(service.hasLanded(on: landing))
     }
 
+    @Test func landingWaitStopsAsSoonAsTargetIsShown() async throws {
+        let repository = StubRepository(makeDisplay([.desktop, .desktop], current: 0))
+        var polls = 0
+        let service = SpaceSwitchService(
+            repository: repository,
+            emitter: RecordingEmitter(),
+            predictionWindow: 0,
+            sleep: { _ in
+                polls += 1
+                if polls == 3 { repository.display = makeDisplay([.desktop, .desktop], current: 1) }
+            }
+        )
+        let landing = try #require(service.perform(.neighbor(.right)))
+
+        #expect(await service.waitForLanding(on: landing))
+        #expect(polls == 3)
+    }
+
+    @Test func landingWaitGivesUpAfterTimeout() async throws {
+        let repository = StubRepository(makeDisplay([.desktop, .desktop], current: 0))
+        var polls = 0
+        let timing = SwitchTiming(settleDelay: .zero, landingTimeout: .milliseconds(10), landingPollInterval: .milliseconds(4))
+        let service = SpaceSwitchService(
+            repository: repository,
+            emitter: RecordingEmitter(),
+            predictionWindow: 0,
+            timing: timing,
+            sleep: { _ in polls += 1 }
+        )
+        let landing = try #require(service.perform(.neighbor(.right)))
+
+        #expect(await service.waitForLanding(on: landing) == false)
+        #expect(polls == 3)
+    }
+
     @Test func unknownSpacesStillSwitchNeighborButNotJumps() {
         let emitter = RecordingEmitter()
         let service = SpaceSwitchService(repository: StubRepository(nil), emitter: emitter, predictionWindow: 0)
@@ -105,62 +144,131 @@ private final class StubWindowLocator: AppWindowLocator {
 
 @MainActor
 @Suite struct ActivationFollowServiceTests {
-    private let start = Date(timeIntervalSinceReferenceDate: 0)
+    private let ownProcessID: pid_t = 42
 
-    private func makeFixture(now: @escaping () -> Date) -> (StubRepository, RecordingEmitter, StubWindowLocator, ActivationFollowService) {
-        let repository = StubRepository(makeDisplay([.desktop, .fullscreen, .desktop], current: 0, displayID: "A"))
-        repository.otherDisplays = [
-            DisplaySpaces(displayID: "B", spaces: [Space(id: 10, kind: .desktop), Space(id: 11, kind: .desktop)], currentSpaceID: 10)!,
-        ]
+    @MainActor
+    private final class FollowLog {
+        var currentTime = Date(timeIntervalSinceReferenceDate: 0)
+        var landings: [DisplaySpaces] = []
+    }
+
+    @MainActor
+    private struct Fixture {
         let emitter = RecordingEmitter()
         let locator = StubWindowLocator()
-        let switcher = SpaceSwitchService(repository: repository, emitter: emitter, predictionWindow: 0, now: now)
-        let follower = ActivationFollowService(locator: locator, switcher: switcher, landingQuietPeriod: 0.5, now: now)
-        return (repository, emitter, locator, follower)
+        let log = FollowLog()
+        let follower: ActivationFollowService
+
+        init(ownProcessID: pid_t) {
+            let repository = StubRepository(makeDisplay([.desktop, .fullscreen, .desktop], current: 0, displayID: "A"))
+            repository.otherDisplays = [
+                DisplaySpaces(displayID: "B", spaces: [Space(id: 10, kind: .desktop), Space(id: 11, kind: .desktop)], currentSpaceID: 10)!,
+            ]
+            let log = log
+            let now = { log.currentTime }
+            let switcher = SpaceSwitchService(repository: repository, emitter: emitter, predictionWindow: 0, now: now)
+            follower = ActivationFollowService(
+                locator: locator,
+                switcher: switcher,
+                ownProcessID: ownProcessID,
+                landingQuietPeriod: 0.5,
+                activationDelay: .zero,
+                now: now,
+                sleep: { _ in }
+            ) { landing in
+                log.landings.append(landing)
+            }
+        }
+
+        func activate(_ processID: pid_t) async {
+            await follower.appDidActivate(processID: processID)?.value
+        }
     }
 
-    @Test func switchesOnTheDisplayOwningTheFrontmostWindowSpace() throws {
-        let (_, emitter, locator, follower) = makeFixture { .distantFuture }
-        locator.spaces = [11, 3]
+    @Test func switchesOnTheDisplayOwningTheFrontmostWindowSpace() async throws {
+        let fixture = Fixture(ownProcessID: ownProcessID)
+        fixture.locator.spaces = [11, 3]
 
-        let landing = try #require(follower.appDidActivate(processID: 1))
+        await fixture.activate(1)
 
+        let landing = try #require(fixture.log.landings.first)
         #expect(landing.displayID == "B")
         #expect(landing.currentSpace.id == 11)
-        #expect(emitter.displays == ["B"])
+        #expect(fixture.emitter.displays == ["B"])
     }
 
-    @Test func staysWhenAppAlreadyHasWindowOnAVisibleSpace() {
-        let (_, emitter, locator, follower) = makeFixture { .distantFuture }
-        locator.spaces = [3, 10]
+    @Test func staysWhenAppAlreadyHasWindowOnAVisibleSpace() async {
+        let fixture = Fixture(ownProcessID: ownProcessID)
+        fixture.locator.spaces = [3, 10]
 
-        #expect(follower.appDidActivate(processID: 1) == nil)
-        #expect(emitter.emitted.isEmpty)
+        await fixture.activate(1)
+
+        #expect(fixture.log.landings.isEmpty)
+        #expect(fixture.emitter.emitted.isEmpty)
     }
 
-    @Test func windowListedOnSeveralHiddenSpacesIsChasedToItsFirstSpace() {
-        let (_, _, locator, follower) = makeFixture { .distantFuture }
-        locator.spaces = [11, 2]
+    @Test func windowListedOnSeveralHiddenSpacesIsChasedToItsFirstSpace() async {
+        let fixture = Fixture(ownProcessID: ownProcessID)
+        fixture.locator.spaces = [11, 2]
 
-        #expect(follower.appDidActivate(processID: 1)?.currentSpace.id == 11)
+        await fixture.activate(1)
+
+        #expect(fixture.log.landings.map(\.currentSpace.id) == [11])
     }
 
-    @Test func ignoresActivationsRightAfterLandingAndUnknownSpaces() {
-        var current = start
-        let (_, emitter, locator, follower) = makeFixture { current }
-        locator.spaces = [3]
+    @Test func ignoresActivationsRightAfterLandingAndUnknownSpaces() async {
+        let fixture = Fixture(ownProcessID: ownProcessID)
+        fixture.locator.spaces = [3]
 
-        follower.spaceDidChange()
-        current = start.addingTimeInterval(0.3)
-        #expect(follower.appDidActivate(processID: 1) == nil)
+        fixture.follower.spaceDidChange()
+        fixture.log.currentTime.addTimeInterval(0.3)
+        await fixture.activate(1)
+        #expect(fixture.log.landings.isEmpty)
 
-        locator.spaces = [999]
-        current = start.addingTimeInterval(1)
-        #expect(follower.appDidActivate(processID: 1) == nil)
+        fixture.locator.spaces = [999]
+        fixture.log.currentTime.addTimeInterval(0.7)
+        await fixture.activate(1)
+        #expect(fixture.log.landings.isEmpty)
 
-        locator.spaces = [3]
-        #expect(follower.appDidActivate(processID: 1)?.currentSpace.id == 3)
-        #expect(emitter.emitted.count == 1)
+        fixture.locator.spaces = [3]
+        await fixture.activate(1)
+        #expect(fixture.log.landings.map(\.currentSpace.id) == [3])
+        #expect(fixture.emitter.emitted.count == 1)
+    }
+
+    @Test func spaceChangeDuringActivationDelayCancelsFollow() async {
+        let fixture = Fixture(ownProcessID: ownProcessID)
+        fixture.locator.spaces = [3]
+
+        let pending = fixture.follower.appDidActivate(processID: 1)
+        fixture.follower.spaceDidChange()
+        fixture.log.currentTime.addTimeInterval(10)
+        await pending?.value
+
+        #expect(fixture.log.landings.isEmpty)
+        #expect(fixture.locator.requestedProcesses.isEmpty)
+    }
+
+    @Test func laterActivationReplacesPendingFollow() async {
+        let fixture = Fixture(ownProcessID: ownProcessID)
+        fixture.locator.spaces = [3]
+
+        let first = fixture.follower.appDidActivate(processID: 1)
+        await fixture.activate(2)
+        await first?.value
+
+        #expect(fixture.locator.requestedProcesses == [2])
+        #expect(fixture.log.landings.count == 1)
+    }
+
+    @Test func ownActivationNeverFollows() async {
+        let fixture = Fixture(ownProcessID: ownProcessID)
+        fixture.locator.spaces = [3]
+
+        await fixture.activate(ownProcessID)
+
+        #expect(fixture.locator.requestedProcesses.isEmpty)
+        #expect(fixture.log.landings.isEmpty)
     }
 }
 
@@ -217,5 +325,81 @@ private final class FakeShortcutController: SystemShortcutController {
         #expect(controller.shortcuts[79]?.isEnabled == true)
         #expect(controller.shortcuts[81]?.isEnabled == true)
         #expect(controller.shortcuts[118]?.isEnabled == false)
+    }
+}
+
+@MainActor
+private final class FakeHotkeyRegistry: HotkeyRegistry {
+    var occupied: Set<KeyCombo> = []
+    private(set) var registered: [KeyCombo: SwitchTarget] = [:]
+
+    func register(_ actions: [KeyCombo: SwitchTarget]) -> Set<KeyCombo> {
+        registered = actions.filter { !occupied.contains($0.key) }
+        return Set(actions.keys).intersection(occupied)
+    }
+
+    func unregisterAll() {
+        registered = [:]
+    }
+}
+
+@MainActor
+@Suite struct HotkeyServiceTests {
+    private let controlLeft = KeyCombo(keyCode: KeyCode.leftArrow, modifiers: .control)
+    private let controlRight = KeyCombo(keyCode: KeyCode.rightArrow, modifiers: .control)
+    private let optionLeft = KeyCombo(keyCode: KeyCode.leftArrow, modifiers: .option)
+
+    private func bindings(left: KeyCombo?) -> HotkeyBindings {
+        HotkeyBindings(left: left, right: controlRight, previous: nil, desktopModifiers: nil)
+    }
+
+    private func makeService() -> (FakeHotkeyRegistry, FakeShortcutController, HotkeyService) {
+        let registry = FakeHotkeyRegistry()
+        let controller = FakeShortcutController([
+            SystemShortcut(id: 79, combo: controlLeft, isEnabled: true),
+            SystemShortcut(id: 81, combo: controlRight, isEnabled: true),
+        ])
+        let service = HotkeyService(registry: registry, systemShortcuts: SystemShortcutCoordinator(controller: controller))
+        return (registry, controller, service)
+    }
+
+    @Test func comboTakenByAnotherAppKeepsItsSystemShortcut() {
+        let (registry, controller, service) = makeService()
+        registry.occupied = [controlLeft]
+
+        service.apply(bindings(left: controlLeft))
+
+        #expect(service.unavailableCombos == [controlLeft])
+        #expect(controller.shortcuts[79]?.isEnabled == true)
+        #expect(controller.shortcuts[81]?.isEnabled == false)
+    }
+
+    @Test func recordingSuspendsHotkeysUntilLastRecorderStops() {
+        let (registry, controller, service) = makeService()
+        service.apply(bindings(left: controlLeft))
+
+        service.suspend()
+        service.suspend()
+        service.apply(bindings(left: optionLeft))
+        #expect(registry.registered.isEmpty)
+        #expect(controller.shortcuts[79]?.isEnabled == false)
+
+        service.resume()
+        #expect(registry.registered.isEmpty)
+
+        service.resume()
+        #expect(registry.registered[optionLeft] == .neighbor(.left))
+        #expect(registry.registered[controlLeft] == nil)
+        #expect(controller.shortcuts[79]?.isEnabled == true)
+    }
+
+    @Test func unbalancedResumeDoesNotReregisterWhileSuspended() {
+        let (registry, _, service) = makeService()
+        service.apply(bindings(left: controlLeft))
+
+        service.resume()
+        service.suspend()
+
+        #expect(registry.registered.isEmpty)
     }
 }

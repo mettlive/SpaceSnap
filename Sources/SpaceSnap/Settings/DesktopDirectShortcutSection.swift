@@ -19,10 +19,9 @@ struct DesktopDirectShortcutSection: View {
 
             if let current = modifiers {
                 HStack(spacing: 12) {
-                    modifierToggle(.control, symbol: "⌃", current: current)
-                    modifierToggle(.option, symbol: "⌥", current: current)
-                    modifierToggle(.shift, symbol: "⇧", current: current)
-                    modifierToggle(.command, symbol: "⌘", current: current)
+                    ForEach(KeyModifiers.displayOrder, id: \.rawValue) { modifier in
+                        modifierToggle(modifier, current: current)
+                    }
                 }
                 Text(previewText(for: current))
                     .font(.caption)
@@ -31,8 +30,8 @@ struct DesktopDirectShortcutSection: View {
         }
     }
 
-    private func modifierToggle(_ modifier: KeyModifiers, symbol: String, current: KeyModifiers) -> some View {
-        Toggle(symbol, isOn: Binding(
+    private func modifierToggle(_ modifier: KeyModifiers, current: KeyModifiers) -> some View {
+        Toggle(KeyComboFormatter.symbol(for: modifier), isOn: Binding(
             get: { current.contains(modifier) },
             set: { isOn in
                 var updated = current

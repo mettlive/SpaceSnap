@@ -28,11 +28,18 @@ public final class SkyLightSystemShortcutController: SystemShortcutController {
     }
 
     private static func modifiers(_ flags: CGEventFlags) -> KeyModifiers {
-        var modifiers: KeyModifiers = []
-        if flags.contains(.maskControl) { modifiers.insert(.control) }
-        if flags.contains(.maskAlternate) { modifiers.insert(.option) }
-        if flags.contains(.maskShift) { modifiers.insert(.shift) }
-        if flags.contains(.maskCommand) { modifiers.insert(.command) }
-        return modifiers
+        KeyModifiers.displayOrder.reduce(into: KeyModifiers()) { result, modifier in
+            if flags.contains(cgEventFlag(for: modifier)) { result.insert(modifier) }
+        }
+    }
+
+    private static func cgEventFlag(for modifier: KeyModifiers) -> CGEventFlags {
+        switch modifier {
+        case .control: .maskControl
+        case .option: .maskAlternate
+        case .shift: .maskShift
+        case .command: .maskCommand
+        default: []
+        }
     }
 }

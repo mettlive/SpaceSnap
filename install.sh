@@ -5,7 +5,6 @@ APP_NAME="SpaceSnap"
 BUNDLE_ID="dev.mettlive.SpaceSnap"
 DOWNLOAD_URL="https://github.com/mettlive/SpaceSnap/releases/latest/download/${APP_NAME}.zip"
 INSTALL_DIR="/Applications"
-MINIMUM_MACOS="26.6"
 
 fail() {
     echo "error: $1" >&2
@@ -17,7 +16,6 @@ version_at_least() {
 }
 
 [[ "$(uname -s)" == "Darwin" ]] || fail "${APP_NAME} runs on macOS only"
-version_at_least "$(sw_vers -productVersion)" "${MINIMUM_MACOS}" || fail "${APP_NAME} requires macOS ${MINIMUM_MACOS} or later"
 
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "${WORK_DIR}"' EXIT
@@ -26,6 +24,10 @@ echo "Downloading ${APP_NAME}..."
 curl -fsSL "${DOWNLOAD_URL}" -o "${WORK_DIR}/${APP_NAME}.zip"
 ditto -x -k "${WORK_DIR}/${APP_NAME}.zip" "${WORK_DIR}"
 [[ -d "${WORK_DIR}/${APP_NAME}.app" ]] || fail "downloaded archive does not contain ${APP_NAME}.app"
+
+MINIMUM_MACOS="$(plutil -extract LSMinimumSystemVersion raw "${WORK_DIR}/${APP_NAME}.app/Contents/Info.plist" 2>/dev/null)" \
+    || fail "could not read the minimum macOS version from ${APP_NAME}.app"
+version_at_least "$(sw_vers -productVersion)" "${MINIMUM_MACOS}" || fail "${APP_NAME} requires macOS ${MINIMUM_MACOS} or later"
 
 if pgrep -xq "${APP_NAME}"; then
     echo "Quitting running ${APP_NAME}..."

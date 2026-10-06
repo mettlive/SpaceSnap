@@ -15,7 +15,6 @@ func makeDisplay(_ kinds: [Space.Kind], current: Int, displayID: String = "A") -
         #expect(display.indexOfDesktop(number: 3) == 3)
         #expect(display.indexOfDesktop(number: 4) == nil)
         #expect(display.indexOfDesktop(number: 0) == nil)
-        #expect(display.desktopCount == 3)
     }
 
     @Test func rejectsCurrentSpaceOutsideList() {

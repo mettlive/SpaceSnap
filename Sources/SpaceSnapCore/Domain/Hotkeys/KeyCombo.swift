@@ -9,6 +9,8 @@ public struct KeyModifiers: OptionSet, Sendable, Hashable, Codable {
     public static let option = KeyModifiers(rawValue: 1 << 1)
     public static let shift = KeyModifiers(rawValue: 1 << 2)
     public static let command = KeyModifiers(rawValue: 1 << 3)
+
+    public static let displayOrder: [KeyModifiers] = [.control, .option, .shift, .command]
 }
 
 public struct KeyCombo: Sendable, Hashable, Codable {
