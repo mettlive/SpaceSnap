@@ -10,7 +10,7 @@ struct DesktopDirectShortcutSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Toggle("Прямой переход к рабочему столу 1–10", isOn: Binding(
+            Toggle("Jump directly to desktop 1–10", isOn: Binding(
                 get: { isEnabled },
                 set: { newValue in
                     modifiers = newValue ? (modifiers ?? .control) : nil

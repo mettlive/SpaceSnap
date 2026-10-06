@@ -7,7 +7,7 @@ struct LaunchAtLoginToggle: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Toggle("Запускать при входе в систему", isOn: Binding(
+            Toggle("Launch at login", isOn: Binding(
                 get: { isEnabled },
                 set: { toggle($0) }
             ))

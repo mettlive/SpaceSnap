@@ -7,17 +7,17 @@ struct ShortcutsSettingsTab: View {
     var body: some View {
         Form {
             HStack {
-                Text("Влево")
+                Text("Desktop on the left")
                 Spacer()
                 ShortcutRecorder(combo: $model.settings.hotkeys.left)
             }
             HStack {
-                Text("Вправо")
+                Text("Desktop on the right")
                 Spacer()
                 ShortcutRecorder(combo: $model.settings.hotkeys.right)
             }
             HStack {
-                Text("Предыдущий рабочий стол")
+                Text("Back to previous desktop")
                 Spacer()
                 ShortcutRecorder(combo: $model.settings.hotkeys.previous)
             }
@@ -26,7 +26,7 @@ struct ShortcutsSettingsTab: View {
 
             DesktopDirectShortcutSection(modifiers: $model.settings.hotkeys.desktopModifiers)
 
-            Text("Конфликтующие системные сочетания Mission Control отключаются на время работы SpaceSnap и восстанавливаются при выходе.")
+            Text("Conflicting Mission Control shortcuts are turned off while SpaceSnap runs and restored when it quits.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }

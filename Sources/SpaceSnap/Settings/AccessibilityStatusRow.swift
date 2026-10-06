@@ -8,10 +8,10 @@ struct AccessibilityStatusRow: View {
         HStack {
             Image(systemName: isGranted ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .foregroundStyle(isGranted ? .green : .orange)
-            Text(isGranted ? "Доступ к Универсальному доступу предоставлен" : "Нет доступа к Универсальному доступу")
+            Text(isGranted ? "Accessibility access granted" : "No Accessibility access")
             Spacer()
             if !isGranted {
-                Button("Открыть настройки…") {
+                Button("Open System Settings…") {
                     AccessibilityPermission.openSystemSettings()
                 }
             }

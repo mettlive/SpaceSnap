@@ -6,9 +6,9 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralSettingsTab(model: model)
-                .tabItem { Label("Основные", systemImage: "gearshape") }
+                .tabItem { Label("General", systemImage: "gearshape") }
             ShortcutsSettingsTab(model: model)
-                .tabItem { Label("Сочетания клавиш", systemImage: "keyboard") }
+                .tabItem { Label("Shortcuts", systemImage: "keyboard") }
         }
         .frame(width: 460)
         .fixedSize(horizontal: false, vertical: true)

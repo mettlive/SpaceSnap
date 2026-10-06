@@ -5,24 +5,24 @@ struct GeneralSettingsTab: View {
 
     var body: some View {
         Form {
-            Toggle("Мгновенный свайп трекпадом", isOn: $model.settings.interceptsTrackpadSwipes)
-            Toggle("Показывать индикатор при переключении", isOn: $model.settings.showsOverlay)
+            Toggle("Instant trackpad swipe", isOn: $model.settings.interceptsTrackpadSwipes)
+            Toggle("Show overlay when switching", isOn: $model.settings.showsOverlay)
 
             VStack(alignment: .leading, spacing: 4) {
-                Toggle("Не перебрасывать с пустого рабочего стола", isOn: $model.settings.preventsEmptyDesktopYank)
-                Text("macOS автоматически возвращает вас с пустого рабочего стола примерно через 0.4 секунды — эта опция это предотвращает.")
+                Toggle("Stay on empty desktops", isOn: $model.settings.preventsEmptyDesktopYank)
+                Text("About 0.4 s after you land on an empty desktop, macOS activates another app and switches to its desktop. This option prevents that.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                Toggle("Мгновенный переход к приложению (Dock, ⌘Tab)", isOn: $model.settings.followsAppActivationInstantly)
-                Text("Заменяет анимированный переход Dock на стол с окном приложения. При включении и выключении Dock перезапускается; при выходе из SpaceSnap стандартное поведение возвращается.")
+                Toggle("Instant jump to an app's desktop (Dock, ⌘Tab)", isOn: $model.settings.followsAppActivationInstantly)
+                Text("Replaces the Dock's animated switch to the desktop with the app's window. The Dock restarts when this is turned on or off; the default behavior is restored when SpaceSnap quits.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Toggle("Показывать номер рабочего стола в строке меню", isOn: $model.settings.showsSpaceNumberInMenuBar)
+            Toggle("Show desktop number in the menu bar", isOn: $model.settings.showsSpaceNumberInMenuBar)
 
             Divider()
 

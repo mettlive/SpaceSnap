@@ -13,7 +13,7 @@ struct SpaceSnapApp: App {
         }
         .menuBarExtraStyle(.menu)
 
-        Window("Настройки SpaceSnap", id: "settings") {
+        Window("SpaceSnap Settings", id: "settings") {
             SettingsView(model: appDelegate.model)
         }
         .defaultLaunchBehavior(.suppressed)

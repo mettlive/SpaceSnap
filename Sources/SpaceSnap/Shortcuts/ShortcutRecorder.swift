@@ -16,8 +16,8 @@ struct ShortcutRecorder: View {
     }
 
     private var label: String {
-        if isRecording { return "Нажмите сочетание…" }
-        guard let combo else { return "Не задано" }
+        if isRecording { return "Press shortcut…" }
+        guard let combo else { return "None" }
         return KeyComboFormatter.string(for: combo)
     }
 

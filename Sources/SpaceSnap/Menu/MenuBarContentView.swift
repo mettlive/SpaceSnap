@@ -14,26 +14,26 @@ struct MenuBarContentView: View {
         }
 
         if model.needsRelaunch {
-            Button("Перезапустить SpaceSnap") {
+            Button("Relaunch SpaceSnap") {
                 model.relaunch()
             }
             Divider()
         }
 
         if !model.isAccessibilityGranted {
-            Text("Нет доступа к Универсальному доступу")
-            Button("Выдать доступ к Универсальному доступу…") {
+            Text("No Accessibility access")
+            Button("Grant Accessibility Access…") {
                 AccessibilityPermission.openSystemSettings()
             }
             Divider()
         }
 
-        Button("Настройки…") {
+        Button("Settings…") {
             openSettings()
         }
         .keyboardShortcut(",", modifiers: .command)
 
-        Button("Выйти") {
+        Button("Quit SpaceSnap") {
             NSApp.terminate(nil)
         }
         .keyboardShortcut("q", modifiers: .command)
@@ -51,11 +51,11 @@ struct MenuBarContentView: View {
                     if index == spaces.currentIndex {
                         Image(systemName: "checkmark")
                     }
-                    Text("Рабочий стол \(number)")
+                    Text("Desktop \(number)")
                 }
             }
         case .fullscreen:
-            Button("Полноэкранное приложение") {}
+            Button("Fullscreen App") {}
                 .disabled(true)
         }
     }
