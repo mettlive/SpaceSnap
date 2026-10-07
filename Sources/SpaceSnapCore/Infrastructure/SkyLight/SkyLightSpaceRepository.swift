@@ -43,8 +43,10 @@ public final class SkyLightSpaceRepository: SpaceRepository {
 
     private func parseSpace(_ raw: [String: Any]) -> Space? {
         guard let id = (raw["id64"] as? NSNumber)?.uint64Value else { return nil }
-        let kind: Space.Kind = (raw["type"] as? NSNumber)?.intValue == Self.fullscreenSpaceType ? .fullscreen : .desktop
-        return Space(id: id, kind: kind)
+        guard (raw["type"] as? NSNumber)?.intValue == Self.fullscreenSpaceType else {
+            return Space(id: id, kind: .desktop)
+        }
+        return Space(id: id, kind: .fullscreen, ownerProcessID: (raw["pid"] as? NSNumber)?.int32Value)
     }
 
     private static let fullscreenSpaceType = 4

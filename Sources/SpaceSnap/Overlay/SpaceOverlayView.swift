@@ -2,9 +2,15 @@ import SwiftUI
 import SpaceSnapCore
 
 struct SpaceOverlayView: View {
+    struct FullscreenApp {
+        let name: String
+        let icon: NSImage
+    }
+
     static let size = CGSize(width: 180, height: 120)
 
     let displaySpaces: DisplaySpaces?
+    var fullscreenApp: FullscreenApp?
 
     var body: some View {
         VStack(spacing: 12) {
@@ -17,7 +23,18 @@ struct SpaceOverlayView: View {
 
     @ViewBuilder
     private var centerContent: some View {
-        if let displaySpaces, displaySpaces.currentSpace.kind == .fullscreen {
+        if let fullscreenApp {
+            VStack(spacing: 4) {
+                Image(nsImage: fullscreenApp.icon)
+                    .resizable()
+                    .frame(width: 44, height: 44)
+                Text(fullscreenApp.name)
+                    .font(.system(size: 13, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 12)
+            }
+        } else if let displaySpaces, displaySpaces.currentSpace.kind == .fullscreen {
             Image(systemName: "rectangle.fill")
                 .font(.system(size: 40))
         } else if let number = displaySpaces?.currentDesktopNumber {

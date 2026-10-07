@@ -10,7 +10,7 @@ Instant macOS Spaces switching — no slide animation, no lag after it. A small 
 - **Back to the previous desktop** — `` ⌃` `` by default.
 - **Empty-desktop guard** — about 0.4 s after you land on a desktop with no windows, macOS activates some other app and yanks you to its desktop. SpaceSnap takes focus itself so that never happens.
 - **Instant jump to an app's desktop** (optional) — clicking an app in the Dock, `⌘Tab`, opening a link or a notification switches to the desktop with that app's window instantly instead of with the Dock's animation. Works across displays.
-- **Indicator** — current desktop number in the menu bar and a short overlay on every switch.
+- **Indicator** — current desktop number in the menu bar and a short overlay on every switch; on a fullscreen app's space the overlay shows that app's icon and name.
 - Switching always targets the display under the pointer (same as the native `⌃←/→`), with no rubber-band bounce at the first/last desktop.
 
 ## Install

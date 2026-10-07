@@ -176,6 +176,7 @@ final class AppModel {
     private func present(_ landing: DisplaySpaces) {
         overlayTask?.cancel()
         guard settings.showsOverlay else { return }
+        overlay.dismissIfShowingFullscreen()
         overlayTask = Task { [weak self, service] in
             guard await service.waitForLanding(on: landing) else { return }
             self?.overlay.show(landing)

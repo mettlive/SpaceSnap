@@ -1,3 +1,5 @@
+import Darwin
+
 public typealias SpaceID = UInt64
 
 public struct Space: Sendable, Equatable {
@@ -8,10 +10,12 @@ public struct Space: Sendable, Equatable {
 
     public let id: SpaceID
     public let kind: Kind
+    public let ownerProcessID: pid_t?
 
-    public init(id: SpaceID, kind: Kind) {
+    public init(id: SpaceID, kind: Kind, ownerProcessID: pid_t? = nil) {
         self.id = id
         self.kind = kind
+        self.ownerProcessID = ownerProcessID
     }
 }
 

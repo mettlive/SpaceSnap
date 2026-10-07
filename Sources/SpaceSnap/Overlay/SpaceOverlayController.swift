@@ -7,6 +7,7 @@ final class SpaceOverlayController {
     private let panel: NSPanel
     private let hostingView: NSHostingView<SpaceOverlayView>
     private var hideTask: Task<Void, Never>?
+    private var shownSpace: Space?
 
     init() {
         let hostingView = NSHostingView(rootView: SpaceOverlayView(displaySpaces: nil))
@@ -34,7 +35,11 @@ final class SpaceOverlayController {
 
     func show(_ landing: DisplaySpaces) {
         hideTask?.cancel()
-        hostingView.rootView = SpaceOverlayView(displaySpaces: landing)
+        shownSpace = landing.currentSpace
+        hostingView.rootView = SpaceOverlayView(
+            displaySpaces: landing,
+            fullscreenApp: Self.fullscreenApp(owning: landing.currentSpace)
+        )
 
         if let screen = DisplayLocator.screen(forDisplayID: landing.displayID) {
             center(on: screen)
@@ -53,6 +58,23 @@ final class SpaceOverlayController {
             guard !Task.isCancelled else { return }
             self.panel.orderOut(nil)
         }
+    }
+
+    func dismissIfShowingFullscreen() {
+        guard panel.isVisible, shownSpace?.kind == .fullscreen else { return }
+        hideTask?.cancel()
+        panel.alphaValue = 0
+        panel.orderOut(nil)
+    }
+
+    private static func fullscreenApp(owning space: Space) -> SpaceOverlayView.FullscreenApp? {
+        guard space.kind == .fullscreen,
+              let processID = space.ownerProcessID,
+              let app = NSRunningApplication(processIdentifier: processID),
+              let name = app.localizedName,
+              let icon = app.icon
+        else { return nil }
+        return SpaceOverlayView.FullscreenApp(name: name, icon: icon)
     }
 
     private func center(on screen: NSScreen) {
