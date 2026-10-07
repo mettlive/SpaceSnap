@@ -59,6 +59,9 @@ public final class DockSwipeGestureEmitter: SpaceGestureEmitter {
 
     private func validatedDockEvent(_ phase: DockSwipeEvent.Phase, sign: Double) -> CGEvent? {
         guard let event = makeDockSwipeEvent(phase: phase, sign: sign) else { return nil }
+        event.setIntegerValueField(DockSwipeEvent.phaseAlias, value: phase.rawValue)
+        event.setDoubleValueField(DockSwipeEvent.zoomDeltaY, value: DockSwipeEvent.realSwipeZoomDeltaY)
+        event.setDoubleValueField(DockSwipeEvent.sourceProcessAlias, value: Double(mach_absolute_time()))
         event.setDoubleValueField(DockSwipeEvent.swipePositionX, value: 0.1)
         if phase == .ended {
             event.setDoubleValueField(DockSwipeEvent.swipeVelocityX, value: Self.flingVelocity * sign)

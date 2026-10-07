@@ -12,6 +12,11 @@ enum DockSwipeEvent {
     static let swipeVelocityX = field(129)
     static let swipeVelocityY = field(130)
     static let phase = field(132)
+    static let phaseAlias = field(134)
+    static let zoomDeltaY = field(138)
+    static let sourceProcessAlias = field(169)
+
+    static let realSwipeZoomDeltaY = 3.0
 
     static let gestureEventType: Int64 = 29
     static let dockControlEventType: Int64 = 30
